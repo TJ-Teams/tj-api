@@ -31,5 +31,5 @@ def put_data():
 @rest_api.route('/api/data/get', method=['GET'])
 def get_data():
     with open('db.json', 'r') as file:
-        data = json.loads(file.read())
+        data = json.loads(file.read())['deals_pull'][0]
     return data, 200
