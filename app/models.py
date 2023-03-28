@@ -2,10 +2,15 @@
 from datetime import datetime
 
 import json 
+import os
 
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+def init_json():
+    if !os.path.isfile('db.json'):
+        base_json = {
+                'deals_pull': []
+        }
+        with open('db.json', 'w') as file:
+            file.write(json.dumps(base_json))
 
 
 class JWTTokenBlocklist(db.Model):

@@ -5,19 +5,18 @@ from flask import Flask
 from flask_cors import CORS
 
 from .routers import rest_api
-from .models import db
+from .models import init_json
 
 app = Flask(__name__)
 
 app.config.from_object('api.config.BaseConfig')
 
-db.init_app(app)
 rest_api.init_app(app)
 CORS(app)
 
 @app.before_first_request
 def initialize_database():
-    db.create_all()
+    init_json()
 
 @app.after_request
 def after_reuest(repsonse):

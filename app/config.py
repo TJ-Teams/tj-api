@@ -12,9 +12,3 @@ class BaseConfig():
 
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
 
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    USE_SQLITE = True
-
-    if USE_SQLITE:
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'db.sqlite3')
