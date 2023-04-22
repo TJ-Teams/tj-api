@@ -44,3 +44,7 @@ def get_data1():
         else:
             data = data[0]
     return data, 200
+
+@rest_api.route('/api/rec/get')
+def get_recomendations():
+    return {}
