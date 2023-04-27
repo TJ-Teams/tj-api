@@ -13,19 +13,21 @@ import requests
 #rest_api = Api(version="1.0", title="TJ API")
 rest_api = Flask(__name__)
 
-@rest_api.route('/api/data/add', methods=['PUT'])
+@rest_api.route('/api/data/set', methods=['PUT'])
 def put_data1():
     data = request.get_json()
     with open('db.json', 'r+') as file:
         db_data = json.loads(file.read())
         file.seek(0)
 
-        if len(db_data['deals_pull']) == 0:
-            db_data['deals_pull'] = [data]
-        else:
-            db_data['deals_pull'][0]['parameters'] = data['parameters']
-            db_data['deals_pull'][0]['deals'] = {key: data['deals'].get(key, db_data['deals_pull'][0]['deals'][key]) for key in db_data['deals_pull'][0]['deals']}
-            db_data['deals_pull'][0]['deals'] = dict(db_data['deals_pull'][0]['deals'], **data['deals'])
+        #if len(db_data['deals_pull']) == 0:
+        #    db_data['deals_pull'] = [data]
+        #else:
+            #db_data['deals_pull'][0]['parameters'] = data['parameters']
+            #db_data['deals_pull'][0]['deals'] = {key: data['deals'].get(key, db_data['deals_pull'][0]['deals'][key]) for key in db_data['deals_pull'][0]['deals']}
+            #db_data['deals_pull'][0]['deals'] = dict(db_data['deals_pull'][0]['deals'], **data['deals'])
+            
+        db_data['deals_pull'] = [data]
 
         file.write(json.dumps(db_data, indent=4))
         file.truncate()
