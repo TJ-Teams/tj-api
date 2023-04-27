@@ -47,6 +47,43 @@ def get_data1():
     return data, 200
 
 
+COLUMN_MAPPING = {
+    'asset-code': ['name'],
+    'market': ['marketplace']
+}
+
+def get_dfc(pd_df, col):
+    if col in COLUMN_MAPPING:
+        for c in COLUMN_MAPPING[col]:
+            if c in pd_df.columns:
+                return pd_df[c]
+    return pd_df[col]
+
+def get_dfcs(pd_df, col):
+    if col in COLUMN_MAPPING:
+        for c in COLUMN_MAPPING[col]:
+            if c in pd_df.columns:
+                return c
+    return col
+
+def get_rowc(row, col):
+    if col in COLUMN_MAPPING:
+        for c in COLUMN_MAPPING[col]:
+            if c in row:
+                return c
+    return col
+
+
+def get_sf_columns(obj):
+    result = []
+    just_keys = [x['key'] for x in obj]
+    if 'date' in just_keys:
+        result.append('date')
+    if 'start-time' in just_keys:
+        result.append('start-time')
+    return result
+
+
 @rest_api.route('/api/rec/get')
 def get_recomendations():
     with open('db.json', 'r') as file:
@@ -54,7 +91,7 @@ def get_recomendations():
     if 'deals_pull' not in cont:
         return {}
         
-    my_df = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index').sort_values(by=['start-date', 'start-time'])
+    my_df = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index').sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
     my_df = my_df.reset_index()
 
     history = {}
@@ -62,15 +99,15 @@ def get_recomendations():
     for index, row in my_df.iterrows():
         if not pandas.isnull(row['amount']):
             if row['deal-type'] == 'Покупка':
-                if row['asset-code'] in history:
-                    history[row['asset-code']].append((history[row['asset-code']][-1][0] + float(row['amount']), row['index']))
+                if row[get_rowc(row, 'asset-code')] in history:
+                    history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
                 else:
-                    history[row['asset-code']] = [(float(row['amount']), row['index'])]
+                    history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
             else:
-                if row['asset-code'] in history:
-                    history[row['asset-code']].append((history[row['asset-code']][-1][0] - float(row['amount']), row['index']))
+                if row[get_rowc(row, 'asset-code')] in history:
+                    history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
                 else:
-                    history[row['asset-code']] = [(-float(row['amount']), row['index'])]
+                    history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
                     
     history_with_groups = {}
 
@@ -139,12 +176,12 @@ def get_recomendations():
             for gk in group_list:
                 group_list[gk] = most_common(group_list[gk])
             new_object = {}
-            if 'market' in group_list:
-                new_object['market'] = group_list['market']
+            if  get_dfcs(my_df, 'market') in group_list:
+                new_object[get_dfcs(my_df, 'market')] = group_list[get_dfcs(my_df, 'market')]
             if 'trading-mode' in group_list:
                 new_object['trading-mode'] = group_list['trading-mode']
-            if 'asset-code' in group_list:
-                new_object['asset-code'] = group_list['asset-code']
+            if get_dfcs(my_df, 'asset-code') in group_list:
+                new_object[get_dfcs(my_df, 'asset-code')] = group_list[get_dfcs(my_df, 'asset-code')]
             if 'broker' in group_list:
                 new_object['broker'] = group_list['broker']
             new_object['analytics'] = group[1]
@@ -162,4 +199,4 @@ def get_recomendations():
     
     response.columns = ['_'.join(col).strip() for col in response.columns.values]
     
-    return response.reset_index().to_dict(orient="split")
+    return response.reset_index().to_dict(orient="records")
