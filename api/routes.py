@@ -150,10 +150,10 @@ def get_recomendations():
             for op in val:
                 cur_op = get_row_by_id(op[1])
                 if cur_op['deal-type'] == 'Покупка':
-                    pro = - float(cur_op['amount']) * get_rub_price(cur_op)
+                    pro = - float(cur_op['total'])
                 else:
-                    pro = float(cur_op['amount']) * get_rub_price(cur_op)
-                    group_prof += pro
+                    pro = float(cur_op['total'])
+                group_prof += pro
             profit_per_group.append(group_prof)
         for idx, val in enumerate(history_with_groups[key]):
             history_with_groups_and_profit[key].append((val, profit_per_group[idx]))
