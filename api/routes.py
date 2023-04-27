@@ -180,8 +180,8 @@ def get_recomendations():
                 new_object[get_dfcs(my_df, 'market')] = group_list[get_dfcs(my_df, 'market')]
             if 'trading-mode' in group_list:
                 new_object['trading-mode'] = group_list['trading-mode']
-            if get_dfcs(my_df, 'asset-code') in group_list:
-                new_object[get_dfcs(my_df, 'asset-code')] = group_list[get_dfcs(my_df, 'asset-code')]
+            #if get_dfcs(my_df, 'asset-code') in group_list:
+            #    new_object[get_dfcs(my_df, 'asset-code')] = group_list[get_dfcs(my_df, 'asset-code')]
             if 'broker' in group_list:
                 new_object['broker'] = group_list['broker']
             new_object['analytics'] = group[1]
