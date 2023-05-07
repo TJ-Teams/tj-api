@@ -202,3 +202,20 @@ def get_recomendations():
     response.columns = ['_'.join(col).strip() for col in response.columns.values]
     
     return response.reset_index().to_dict(orient="records")
+    
+@rest_api.route('/api/stat/get')
+def get_stats():
+    get_rec = pandas.DataFrame.from_records(get_recomendations())
+    
+    result_data = {}
+    
+    parameters = get_rec.columns[:-3]
+    for par in parameters:
+        par_res = get_rec[[par, 'analytics_count_minus', 'analytics_count_plus', 'analytics_sum']].groupby(by=par).sum()
+        par_res['value'] = par_res['analytics_count_minus'] + par_res['analytics_count_plus']
+        par_res['accuracy'] = par_res['analytics_count_plus'] / par_res['value']
+        par_res['profit'] = par_res['analytics_sum']
+        result_data[par] = par_res[['value', 'accuracy', 'profit']].to_dict(orient="index")
+    
+    return result_data
+    
