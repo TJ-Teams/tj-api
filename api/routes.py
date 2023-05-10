@@ -85,16 +85,23 @@ def get_sf_columns(obj):
         result.append('start-time')
     return result
 
-
-@rest_api.route('/api/rec/get')
-def get_recomendations():
+def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     with open('db.json', 'r') as file:
         cont = json.loads(file.read())
     if 'deals_pull' not in cont:
         return {}
         
-    my_df = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index').sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
+    my_df = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index')
     my_df = my_df.reset_index()
+    
+    if 'date' in my_df.columns:
+        my_df['date'] = pandas.to_datetime(my_df['date'], dayfirst=True)
+        if startDate is not None:
+            my_df = my_df[my_df['date'] >= pandas.to_datetime(startDate, dayfirst=True)]
+        if endDate is not None:
+            my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, dayfirst=True)]
+    
+    my_df = my_df.sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
 
     history = {}
 
@@ -177,25 +184,27 @@ def get_recomendations():
                         group_list[op_key] = [get_row_by_id(ag[1])[op_key]]
             for gk in group_list:
                 group_list[gk] = most_common(group_list[gk])
-            new_object = {}
-            if  get_dfcs(my_df, 'market') in group_list:
-                new_object[get_dfcs(my_df, 'market')] = group_list[get_dfcs(my_df, 'market')]
-            if 'trading-mode' in group_list:
-                new_object['trading-mode'] = group_list['trading-mode']
-            #if get_dfcs(my_df, 'asset-code') in group_list:
-            #    new_object[get_dfcs(my_df, 'asset-code')] = group_list[get_dfcs(my_df, 'asset-code')]
-            if 'broker' in group_list:
-                new_object['broker'] = group_list['broker']
-            new_object['analytics'] = group[1]
-            new_pull.append(new_object)
+            group_list['analytics'] = group[1]
+            new_pull.append(group_list.copy())
             
+    group_keys = []
+    for key in cont['deals_pull'][0]['parameters']:
+        if key['key'] not in ['date', 'amount', 'time', 'total']:
+            if key['type'] == 'string':
+                group_keys.append(key['key'])
+                
     pull_df = pandas.DataFrame(new_pull)
+    
+    group_keys = [col for col in group_keys if col in pull_df.columns]
+    
+    if groupKeys is not None:
+        group_keys = [col for col in group_keys if col in groupKeys]
     
     count_plus = lambda x: x[x >= 0.0].count()
     count_plus.__name__ ='count_plus'
     count_minus = lambda x: x[x < 0.0].count()
     count_minus.__name__ ='count_minus'
-    response = pull_df.groupby(list(pull_df.columns[:-1])).agg({
+    response = pull_df.groupby(group_keys).agg({
         'analytics': ['sum', count_plus, count_minus]
     })
     
@@ -203,9 +212,21 @@ def get_recomendations():
     
     return response.reset_index().to_dict(orient="records")
     
+@rest_api.route('/api/rec/get')
+def get_recs():
+    json_data = {}
+    if request.data:
+        json_data = request.json
+        print(json_data)
+    return get_recomendations(**json_data)
+    
 @rest_api.route('/api/stat/get')
 def get_stats():
-    get_rec = pandas.DataFrame.from_records(get_recomendations())
+    json_data = {}
+    if request.data:
+        json_data = request.json
+        print(json_data)
+    get_rec = pandas.DataFrame.from_records(get_recomendations(**json_data))
     
     result_data = {}
     
@@ -219,3 +240,10 @@ def get_stats():
     
     return result_data
     
+@rest_api.route('/api/data_parameters/get')
+def get_data_parameters():
+    with open('db.json', 'r') as file:
+        cont = json.loads(file.read())
+    if 'deals_pull' not in cont:
+        return {}
+    return cont['deals_pull'][0]['parameters']
