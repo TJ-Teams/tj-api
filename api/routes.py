@@ -95,11 +95,11 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     my_df = my_df.reset_index()
     
     if 'date' in my_df.columns:
-        my_df['date'] = pandas.to_datetime(my_df['date'], dayfirst=True)
+        my_df['date'] = pandas.to_datetime(my_df['date'], format='%Y-%m-%d')
         if startDate is not None:
-            my_df = my_df[my_df['date'] >= pandas.to_datetime(startDate, dayfirst=True)]
+            my_df = my_df[my_df['date'] >= pandas.to_datetime(startDate, format='%Y-%m-%d')]
         if endDate is not None:
-            my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, dayfirst=True)]
+            my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, format='%Y-%m-%d')]
     
     my_df = my_df.sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
 
