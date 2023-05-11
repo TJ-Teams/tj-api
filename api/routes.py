@@ -199,6 +199,9 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     
     if groupKeys is not None:
         group_keys = [col for col in group_keys if col in groupKeys.split(',')]
+        
+    if len(groupKeys) == 0:
+        return {}
     
     count_plus = lambda x: x[x >= 0.0].count()
     count_plus.__name__ ='count_plus'
