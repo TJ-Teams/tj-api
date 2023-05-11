@@ -198,7 +198,7 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     group_keys = [col for col in group_keys if col in pull_df.columns]
     
     if groupKeys is not None:
-        group_keys = [col for col in group_keys if col in groupKeys]
+        group_keys = [col for col in group_keys if col in groupKeys.split(',')]
     
     count_plus = lambda x: x[x >= 0.0].count()
     count_plus.__name__ ='count_plus'
@@ -214,19 +214,21 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     
 @rest_api.route('/api/rec/get')
 def get_recs():
-    json_data = {}
-    if request.data:
-        json_data = request.json
-        print(json_data)
-    return get_recomendations(**json_data)
+    request_args = {}
+    if request.args:
+        request_args = request.args
+        print(request_args)
+    rec_args = {k: v for k, v in request_args.items() if k in ['startDate', 'endDate', 'groupKeys']}
+    return get_recomendations(**rec_args)
     
 @rest_api.route('/api/stat/get')
 def get_stats():
-    json_data = {}
-    if request.data:
-        json_data = request.json
-        print(json_data)
-    get_rec = pandas.DataFrame.from_records(get_recomendations(**json_data))
+    request_args = {}
+    if request.args:
+        request_args = request.args
+        print(request_args)
+    rec_args = {k: v for k, v in request_args.items() if k in ['startDate', 'endDate', 'groupKeys']}
+    get_rec = pandas.DataFrame.from_records(get_recomendations(**rec_args))
     
     result_data = {}
     
