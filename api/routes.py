@@ -158,10 +158,14 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
             group_prof = 0.
             for op in val:
                 cur_op = get_row_by_id(op[1])
+                val_column = 'profit' if 'profit' in cur_op else 'total'
                 if cur_op['deal-type'] == 'Покупка':
-                    pro = - float(cur_op['total'])
+                    if val_column == 'profit':
+                        pro = float(cur_op[val_column])
+                    else:
+                        pro = - float(cur_op[val_column])
                 else:
-                    pro = float(cur_op['total'])
+                    pro = float(cur_op[val_column])
                 group_prof += pro
             profit_per_group.append(group_prof)
         for idx, val in enumerate(history_with_groups[key]):
