@@ -91,113 +91,124 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     if 'deals_pull' not in cont:
         return {}
         
-    my_df = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index')
-    my_df = my_df.reset_index()
+    my_df_r = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index')
+    my_df_r = my_df_r.reset_index()
     
-    if 'date' in my_df.columns:
-        my_df['date'] = pandas.to_datetime(my_df['date'], format='%Y-%m-%d')
-        if startDate is not None:
-            my_df = my_df[my_df['date'] >= pandas.to_datetime(startDate, format='%Y-%m-%d')]
-        if endDate is not None:
-            my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, format='%Y-%m-%d')]
+    dfs_list = []
+    pdfs_list = []
     
-    my_df = my_df.sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
-
-    history = {}
-
-    for index, row in my_df.iterrows():
-        if not pandas.isnull(row['amount']):
-            if row['deal-type'] == 'Покупка':
-                if row[get_rowc(row, 'asset-code')] in history:
-                    history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
-                else:
-                    history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
-            else:
-                if row[get_rowc(row, 'asset-code')] in history:
-                    history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
-                else:
-                    history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
-                    
-    history_with_groups = {}
-
-    for currency in history:
-        history_with_groups[currency]= []
+    if 'provider-type' in my_df_r.columns:
+        for group_name, group_df in my_df_r.groupby('provider-type'):
+            dfs_list.append(group_df)
+    else:
+        dfs_list = [my_df_r]
         
-        current_group = []
-        for operation in history[currency]:
-            if operation[0] != 0.0:
-                current_group.append(operation)
-            else:
-                current_group.append(operation)
+    for my_df in dfs_list:
+    
+        if 'date' in my_df.columns:
+            my_df['date'] = pandas.to_datetime(my_df['date'], format='%Y-%m-%d')
+            if startDate is not None:
+                my_df = my_df[my_df['date'] >= pandas.to_datetime(startDate, format='%Y-%m-%d')]
+            if endDate is not None:
+                my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, format='%Y-%m-%d')]
+
+        my_df = my_df.sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
+
+        history = {}
+
+        for index, row in my_df.iterrows():
+            if not pandas.isnull(row['amount']):
+                if row['deal-type'] == 'Покупка':
+                    if row[get_rowc(row, 'asset-code')] in history:
+                        history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
+                    else:
+                        history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
+                else:
+                    if row[get_rowc(row, 'asset-code')] in history:
+                        history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
+                    else:
+                        history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
+                        
+        history_with_groups = {}
+
+        for currency in history:
+            history_with_groups[currency]= []
+            
+            current_group = []
+            for operation in history[currency]:
+                if operation[0] != 0.0:
+                    current_group.append(operation)
+                else:
+                    current_group.append(operation)
+                    history_with_groups[currency].append(current_group)
+                    current_group = []
+            if len(current_group) > 0:
                 history_with_groups[currency].append(current_group)
-                current_group = []
-        if len(current_group) > 0:
-            history_with_groups[currency].append(current_group)
+                
+        def get_row_by_id(x):
+            z = my_df[my_df['index'] == x]
+            idx = z.index[0]
+            r = z.to_dict()
+            return {k: r[k][idx] for k in r}
             
-    def get_row_by_id(x):
-        z = my_df[my_df['index'] == x]
-        idx = z.index[0]
-        r = z.to_dict()
-        return {k: r[k][idx] for k in r}
-
-    def get_rub_price(row):
-        if row['price-currency'] == 'RUB':
-            return float(row['unit-price'])
-        elif row['price-currency'] == 'USD':
-            return float(row['unit-price']) * 80.0
-        else:
-            return 0.
-        
-    new_group_value = []
-    prof_per_curr = {}
-    history_with_groups_and_profit = {}
-    for key in history_with_groups:
-        profit_per_group = []
-        history_with_groups_and_profit[key] = []
-        for idx, val in enumerate(history_with_groups[key]):
-            group_prof = 0.
-            for op in val:
-                cur_op = get_row_by_id(op[1])
-                val_column = 'profit' if 'profit' in cur_op else 'total'
-                if cur_op['deal-type'] == 'Покупка':
-                    if val_column == 'profit':
+        new_group_value = []
+        prof_per_curr = {}
+        history_with_groups_and_profit = {}
+        for key in history_with_groups:
+            profit_per_group = []
+            history_with_groups_and_profit[key] = []
+            for idx, val in enumerate(history_with_groups[key]):
+                group_prof = 0.
+                for op in val:
+                    cur_op = get_row_by_id(op[1])
+                    val_column = 'profit' if 'profit' in cur_op else 'total'
+                    if cur_op['deal-type'] == 'Покупка':
+                        if val_column == 'profit':
+                            pro = float(cur_op[val_column])
+                        else:
+                            pro = - float(cur_op[val_column])
+                    else:
                         pro = float(cur_op[val_column])
-                    else:
-                        pro = - float(cur_op[val_column])
-                else:
-                    pro = float(cur_op[val_column])
-                group_prof += pro
-            profit_per_group.append(group_prof)
-        for idx, val in enumerate(history_with_groups[key]):
-            history_with_groups_and_profit[key].append((val, profit_per_group[idx]))
-            
-    def most_common(lst):
-        return max(set(lst), key=lst.count)
+                    group_prof += pro
+                profit_per_group.append(group_prof)
+            for idx, val in enumerate(history_with_groups[key]):
+                history_with_groups_and_profit[key].append((val, profit_per_group[idx]))
+                
+        def most_common(lst):
+            return max(set(lst), key=lst.count)
 
-    new_pull = []
+        new_pull = []
 
-    for key in history_with_groups_and_profit:
-        for group in history_with_groups_and_profit[key]:
-            actual_group = group[0]
-            group_list = get_row_by_id(actual_group[0][1])
-            for ag in actual_group:
-                for op_key in get_row_by_id(ag[1]):
-                    if type(group_list[op_key]) is list:
-                        group_list[op_key].append(get_row_by_id(ag[1])[op_key])
-                    else:
-                        group_list[op_key] = [get_row_by_id(ag[1])[op_key]]
-            for gk in group_list:
-                group_list[gk] = most_common(group_list[gk])
-            group_list['analytics'] = group[1]
-            new_pull.append(group_list.copy())
-            
+        for key in history_with_groups_and_profit:
+            for group in history_with_groups_and_profit[key]:
+                actual_group = group[0]
+                group_list = get_row_by_id(actual_group[0][1])
+                for ag in actual_group:
+                    for op_key in get_row_by_id(ag[1]):
+                        if type(group_list[op_key]) is list:
+                            group_list[op_key].append(get_row_by_id(ag[1])[op_key])
+                        else:
+                            group_list[op_key] = [get_row_by_id(ag[1])[op_key]]
+                for gk in group_list:
+                    group_list[gk] = most_common(group_list[gk])
+                group_list['analytics'] = group[1]
+                new_pull.append(group_list.copy())
+               
+                    
+        pull_df = pandas.DataFrame(new_pull)
+        
+        pdfs_list.append(pull_df)
+    
+    if len(pdfs_list) > 1:
+        pull_df = pandas.concat(pdfs_list)
+    else:
+        pull_df = pdfs_list[0]
+    
     group_keys = []
     for key in cont['deals_pull'][0]['parameters']:
         if key['key'] not in ['date', 'amount', 'time', 'total']:
             if key['type'] == 'string':
                 group_keys.append(key['key'])
-                
-    pull_df = pandas.DataFrame(new_pull)
     
     group_keys = [col for col in group_keys if col in pull_df.columns]
     
