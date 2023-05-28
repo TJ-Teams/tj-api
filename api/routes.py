@@ -1,7 +1,18 @@
 
 from flask import request
+from flask import jsonify
 from flask import Flask
-#from flask_restx import Api
+from flask_sqlalchemy import SQLAlchemy
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 
 import pandas
 import json
@@ -9,45 +20,96 @@ import sys
 from .config import BaseConfig
 import requests
 
+from .models import create_user, get_json_path, login_user, get_user_info
 
-#rest_api = Api(version="1.0", title="TJ API")
+ACCESS_EXPIRES = timedelta(hours=1)
+
 rest_api = Flask(__name__)
+rest_api.config["JWT_SECRET_KEY"] = "f30f409Uf3jjf0j4J09jf0jfwfmlbwdfvdsdc324f3g556h567jfr" 
+rest_api.config["JWT_ACCESS_TOKEN_EXPIRES"] = ACCESS_EXPIRES
+jwt = JWTManager(rest_api)
+
+rest_api.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+rest_api.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(rest_api)
+
+# https://flask-jwt-extended.readthedocs.io/en/stable/blocklist_and_token_revoking.html
+class TokenBlocklist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False)
+
+@jwt.token_in_blocklist_loader
+def check_if_token_revoked(jwt_header, jwt_payload: dict) -> bool:
+    jti = jwt_payload["jti"]
+    token = db.session.query(TokenBlocklist.id).filter_by(jti=jti).scalar()
+    return token is not None
+
+@rest_api.route("/api/users/login", methods=["POST"])
+def login():
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+    result = login_user(email, password)
+    if result != 0:
+        result_mess = {
+            1: 'Bad fields values',
+            2: 'Email or password is wrong',
+        }
+        return jsonify({"msg": result_mess[result], "error_code": result}), 401
+    access_token = create_access_token(identity=email)
+    return jsonify(access_token=access_token)
+
+@rest_api.route("/api/users/register", methods=["POST"])
+def register():
+    fname = request.json.get("first_name", None)
+    sname = request.json.get("second_name", None)
+    email = request.json.get("email", None)
+    passw = request.json.get("password", None)
+    result = create_user(fname, sname, email, passw)
+    if result != 0:
+        result_mess = {
+            1: 'Bad fields values',
+            2: 'User with such email is already exists',
+        }
+        return jsonify({"msg": result_mess[result], "error_code": result}), 401
+    access_token = create_access_token(identity=email)
+    return jsonify(access_token=access_token)
+    
+@rest_api.route("/api/users/logout", methods=["DELETE"])
+@jwt_required()
+def modify_token():
+    jti = get_jwt()["jti"]
+    now = datetime.now(timezone.utc)
+    db.session.add(TokenBlocklist(jti=jti, created_at=now))
+    db.session.commit()
+    return jsonify(msg="JWT revoked")
+
+@rest_api.route('/api/users/info', methods=['GET'])
+@jwt_required()
+def get_info():
+    email = get_jwt_identity()
+    return jsonify(get_user_info(email))
 
 @rest_api.route('/api/data/set', methods=['PUT'])
+@jwt_required()
 def put_data1():
+    json_name = get_json_path(get_jwt_identity())
+    filename = 'deals/' + json_name + '.json'
     data = request.get_json()
-    with open('db.json', 'r+') as file:
-        db_data = json.loads(file.read())
-        file.seek(0)
-
-        #if len(db_data['deals_pull']) == 0:
-        #    db_data['deals_pull'] = [data]
-        #else:
-            #db_data['deals_pull'][0]['parameters'] = data['parameters']
-            #db_data['deals_pull'][0]['deals'] = {key: data['deals'].get(key, db_data['deals_pull'][0]['deals'][key]) for key in db_data['deals_pull'][0]['deals']}
-            #db_data['deals_pull'][0]['deals'] = dict(db_data['deals_pull'][0]['deals'], **data['deals'])
-            
-        db_data['deals_pull'] = [data]
-
-        file.write(json.dumps(db_data, indent=4))
-        file.truncate()
+    with open(filename, 'w') as file:
+        file.write(json.dumps(data, indent=4))
     return {
             "success": True,
            }, 200
 
-@rest_api.route('/api/data/get')
+@rest_api.route('/api/data/get', methods=['GET'])
+@jwt_required()
 def get_data1():
-    with open('db.json', 'r') as file:
-        data = json.loads(file.read())['deals_pull']
-        if len(data) == 0:
-            data = {
-                    "parameters": [],
-                    "deals": {}
-                }
-        else:
-            data = data[0]
+    json_name = get_json_path(get_jwt_identity())
+    filename = 'deals/' + json_name + '.json'
+    with open(filename, 'r') as file:
+        data = json.loads(file.read())
     return data, 200
-
 
 COLUMN_MAPPING = {
     'asset-code': ['name'],
@@ -85,13 +147,14 @@ def get_sf_columns(obj):
         result.append('start-time')
     return result
 
-def get_recomendations(startDate=None, endDate=None, groupKeys=None):
-    with open('db.json', 'r') as file:
+def get_recomendations(startDate=None, endDate=None, groupKeys=None, jsonn=None):
+    filename = 'deals/' + jsonn + '.json'
+    with open(filename, 'r') as file:
         cont = json.loads(file.read())
-    if 'deals_pull' not in cont:
-        return {}
+    if len(cont['deals']) == 0:
+        return []
         
-    my_df_r = pandas.DataFrame.from_dict(cont['deals_pull'][0]['deals'], orient='index')
+    my_df_r = pandas.DataFrame.from_dict(cont['deals'], orient='index')
     my_df_r = my_df_r.reset_index()
     
     dfs_list = []
@@ -112,7 +175,7 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
             if endDate is not None:
                 my_df = my_df[my_df['date'] <= pandas.to_datetime(endDate, format='%Y-%m-%d')]
 
-        my_df = my_df.sort_values(by=get_sf_columns(cont['deals_pull'][0]['parameters']))
+        my_df = my_df.sort_values(by=get_sf_columns(cont['parameters']))
 
         history = {}
 
@@ -231,21 +294,27 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None):
     return response.reset_index().to_dict(orient="records")
     
 @rest_api.route('/api/rec/get')
+@jwt_required()
 def get_recs():
+    json_name = get_json_path(get_jwt_identity())
     request_args = {}
     if request.args:
         request_args = request.args
         print(request_args)
     rec_args = {k: v for k, v in request_args.items() if k in ['startDate', 'endDate', 'groupKeys']}
+    rec_args['jsonn'] = json_name
     return get_recomendations(**rec_args)
     
 @rest_api.route('/api/stat/get')
+@jwt_required()
 def get_stats():
+    json_name = get_json_path(get_jwt_identity())
     request_args = {}
     if request.args:
         request_args = request.args
         print(request_args)
     rec_args = {k: v for k, v in request_args.items() if k in ['startDate', 'endDate', 'groupKeys']}
+    rec_args['jsonn'] = json_name
     get_rec = pandas.DataFrame.from_records(get_recomendations(**rec_args))
     
     result_data = {}
@@ -261,9 +330,10 @@ def get_stats():
     return result_data
     
 @rest_api.route('/api/data_parameters/get')
+@jwt_required()
 def get_data_parameters():
-    with open('db.json', 'r') as file:
+    json_name = get_json_path(get_jwt_identity())
+    filename = 'deals/' + json_name + '.json'
+    with open(filename, 'r') as file:
         cont = json.loads(file.read())
-    if 'deals_pull' not in cont:
-        return {}
-    return cont['deals_pull'][0]['parameters']
+    return cont['parameters']
