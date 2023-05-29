@@ -8,14 +8,6 @@ import os
 
 import uuid
 
-def init_json():
-    if not os.path.isfile('db.json'):
-        base_json = {
-                'deals_pull': []
-        }
-        with open('db.json', 'w') as file:
-            file.write(json.dumps(base_json))
-
 def init_db():
 
     GLOBAL_DB = sqlite3.connect('mdb.db')

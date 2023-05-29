@@ -268,7 +268,7 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None, jsonn=None)
         pull_df = pdfs_list[0]
     
     group_keys = []
-    for key in cont['deals_pull'][0]['parameters']:
+    for key in cont['parameters']:
         if key['key'] not in ['date', 'amount', 'time', 'total']:
             if key['type'] == 'string':
                 group_keys.append(key['key'])
@@ -278,8 +278,8 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None, jsonn=None)
     if groupKeys is not None:
         group_keys = [col for col in group_keys if col in groupKeys.split(',')]
         
-    if len(groupKeys) == 0:
-        return {}
+    if len(group_keys) == 0:
+        return []
     
     count_plus = lambda x: x[x >= 0.0].count()
     count_plus.__name__ ='count_plus'
