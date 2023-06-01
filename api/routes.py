@@ -181,16 +181,29 @@ def get_recomendations(startDate=None, endDate=None, groupKeys=None, jsonn=None)
 
         for index, row in my_df.iterrows():
             if not pandas.isnull(row['amount']):
-                if row['deal-type'] == 'Покупка':
-                    if row[get_rowc(row, 'asset-code')] in history:
-                        history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
+                val_column = 'profit' if 'profit' in row else 'total'
+                if 'deal-type' in row:
+                    if row['deal-type'].lower() == 'покупка':
+                        if row[get_rowc(row, 'asset-code')] in history:
+                            history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
+                        else:
+                            history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
                     else:
-                        history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
+                        if row[get_rowc(row, 'asset-code')] in history:
+                            history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
+                        else:
+                            history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
                 else:
-                    if row[get_rowc(row, 'asset-code')] in history:
-                        history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
+                    if float(row[val_column]) < .0:
+                        if row[get_rowc(row, 'asset-code')] in history:
+                            history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] + float(row['amount']), row['index']))
+                        else:
+                            history[row[get_rowc(row, 'asset-code')]] = [(float(row['amount']), row['index'])]
                     else:
-                        history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
+                        if row[get_rowc(row, 'asset-code')] in history:
+                            history[row[get_rowc(row, 'asset-code')]].append((history[row[get_rowc(row, 'asset-code')]][-1][0] - float(row['amount']), row['index']))
+                        else:
+                            history[row[get_rowc(row, 'asset-code')]] = [(-float(row['amount']), row['index'])]
                         
         history_with_groups = {}
 
